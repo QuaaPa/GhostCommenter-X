@@ -10,8 +10,7 @@ try:
 except ImportError:
     G4F_AVAILABLE = False
 
-from text_utils import humanize_text, validate_comment_length
-
+from text_utils import humanize_text, validate_comment_length, is_sentence_complete, complete_sentence
 
 def generate_ai_comment_g4f(title: str, content: str, prompts: Dict[str, str], 
                             retry_count: int = 3, log_func=None) -> Optional[str]:
@@ -37,11 +36,24 @@ def generate_ai_comment_g4f(title: str, content: str, prompts: Dict[str, str],
             if response and len(response.strip()) > 10:
                 comment = response.strip()
                 comment = humanize_text(comment)
+                
+                # Check if sentence is complete before validation
+                if not is_sentence_complete(comment):
+                    if log_func:
+                        log_func(f"⚠ Incomplete sentence detected, completing...")
+                    comment = complete_sentence(comment)
+                
                 comment = validate_comment_length(comment)
                 
-                if log_func:
-                    log_func(f"✓ SUCCESS! Comment ({len(comment)} chars): {comment[:50]}...")
-                return comment
+                # Final check
+                if is_sentence_complete(comment):
+                    if log_func:
+                        log_func(f"✓ SUCCESS! Comment ({len(comment)} chars): {comment[:50]}...")
+                    return comment
+                else:
+                    if log_func:
+                        log_func(f"✗ Comment still incomplete after processing, retrying...")
+                    continue
             else:
                 if log_func:
                     log_func(f"✗ G4F returned empty/short response")
@@ -101,7 +113,19 @@ def generate_ai_comment_openai(title: str, content: str, api_key: str,
         
         comment = response.choices[0].message.content.strip()
         comment = humanize_text(comment)
+        
+        # Check completeness
+        if not is_sentence_complete(comment):
+            if log_func:
+                log_func("⚠ Completing incomplete sentence...")
+            comment = complete_sentence(comment)
+        
         comment = validate_comment_length(comment)
+        
+        # Verify final result
+        if not is_sentence_complete(comment):
+            if log_func:
+                log_func("⚠ Warning: Comment may be incomplete")
         
         return comment
     

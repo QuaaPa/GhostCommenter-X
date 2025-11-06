@@ -30,6 +30,81 @@ def humanize_text(text: str) -> str:
     
     return text
 
+def is_sentence_complete(text: str) -> bool:
+    """Check if a sentence appears to be complete"""
+    if not text or len(text.strip()) < 10:
+        return False
+    
+    text = text.strip()
+    words = text.split()
+    
+    # Need at least 3 words
+    if len(words) < 3:
+        return False
+    
+    # Check last word - should be a complete word
+    last_word = words[-1].lower()
+    
+    # Incomplete indicators - words that suggest sentence is cut off
+    incomplete_endings = [
+        'и', 'но', 'а', 'или', 'что', 'как', 'когда', 'где',
+        'с', 'в', 'на', 'по', 'к', 'у', 'о', 'от', 'до',
+        'для', 'про', 'без', 'через', 'над', 'под', 'при',
+        'очень', 'более', 'менее', 'самый', 'такой', 'этот',
+        'мой', 'твой', 'наш', 'ваш', 'их', 'его', 'ее'
+    ]
+    
+    if last_word in incomplete_endings:
+        return False
+    
+    # Check for incomplete verb forms
+    incomplete_verbs = ['буд', 'мог', 'дела', 'сдела', 'сказа', 'говор']
+    for verb in incomplete_verbs:
+        if last_word.startswith(verb) and len(last_word) < len(verb) + 2:
+            return False
+    
+    return True
+
+
+def complete_sentence(text: str) -> str:
+    """Try to complete an incomplete sentence naturally"""
+    if is_sentence_complete(text):
+        return text
+    
+    words = text.split()
+    last_word = words[-1].lower() if words else ""
+    
+    # Completion patterns based on last word
+    completions = {
+        'и': ['все', 'нормально', 'ладно', 'так'],
+        'но': ['нормально', 'ладно', 'хорошо'],
+        'а': ['норм', 'ладно', 'так'],
+        'что': ['интересно', 'думаешь', 'скажешь'],
+        'как': ['думаешь', 'считаешь', 'так'],
+        'с': ['этим', 'ним', 'тем'],
+        'в': ['этом', 'общем', 'итоге'],
+        'на': ['это', 'самом деле'],
+        'для': ['этого', 'начала'],
+        'про': ['это', 'него'],
+        'очень': ['интересно', 'круто', 'неплохо'],
+        'более': ['менее', 'интересно'],
+        'такой': ['же', 'вариант'],
+        'этот': ['момент', 'случай'],
+    }
+    
+    # Try to complete based on last word
+    if last_word in completions:
+        completion = random.choice(completions[last_word])
+        return text + ' ' + completion
+    
+    # Fallback completions
+    fallback_endings = [
+        'норм', 'годно', 'неплохо', 'интересно', 
+        'в общем', 'короче', 'кстати'
+    ]
+    
+    return text + ' ' + random.choice(fallback_endings)
+
 
 def add_typos(text: str) -> str:
     """Add natural typos to make text more human-like"""
@@ -87,11 +162,50 @@ def generate_random_comment(title: str, content: str) -> str:
 
 
 def validate_comment_length(comment: str, min_length: int = 20, max_length: int = 60) -> str:
-    """Ensure comment meets length requirements"""
+    """Ensure comment meets length requirements and is complete"""
+    
+    # First check if sentence is complete
+    if not is_sentence_complete(comment):
+        comment = complete_sentence(comment)
+    
+    # Now handle length
     if len(comment) < min_length:
-        comment += " вобще интересно"
+        # Add natural extensions
+        extensions = [" интересно", " кстати", " вобще", " норм", " годно"]
+        while len(comment) < min_length and extensions:
+            ext = random.choice(extensions)
+            if ext not in comment:  # Avoid duplicates
+                comment += ext
+                extensions.remove(ext)
     
+    # Handle maximum length - cut at word boundary
     if len(comment) > max_length:
-        comment = comment[:max_length].rsplit(' ', 1)[0]
+        words = comment[:max_length].split()
+        
+        if words:
+            truncated = ' '.join(words[:-1])
+            
+            if is_sentence_complete(truncated):
+                comment = truncated
+            else:
+                truncated_with_last = ' '.join(words)
+                if is_sentence_complete(truncated_with_last) and len(truncated_with_last) <= max_length + 5:
+                    comment = truncated_with_last
+                else:
+                    comment = complete_sentence(truncated)
     
-    return comment
+    # Final verification
+    if not is_sentence_complete(comment):
+        comment = complete_sentence(comment)
+    
+    # Final length check
+    if len(comment) > max_length + 10:
+        words = comment.split()
+        while len(' '.join(words)) > max_length and len(words) > 3:
+            words.pop()
+        comment = ' '.join(words)
+        
+        if not is_sentence_complete(comment):
+            comment = complete_sentence(comment)
+    
+    return comment.strip()
